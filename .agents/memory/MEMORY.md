@@ -1,1 +1,2 @@
 - [Python package installation](python-runtime.md) — the minimal Python runtime may lack pip; use a Python tools module before installing packages.
+- [GitHub publishing](github-publishing.md) — use the connected GitHub proxy when the advertised conversation callback is unavailable.
