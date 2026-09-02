@@ -1,0 +1,13 @@
+# Local/runtime files
+.env
+chat_id.txt
+sent_signals.json
+
+# Python runtime artifacts
+.pythonlibs/
+__pycache__/
+*.py[cod]
+
+# Replit/local tooling
+.cache/
+.upm/
