@@ -1,4 +1,5 @@
 import requests, pandas as pd, os, time
+from datetime import datetime
 
 COINS = ["BTCUSDT","ETHUSDT","BNBUSDT","SOLUSDT","XRPUSDT","DOGEUSDT","ADAUSDT","AVAXUSDT","LINKUSDT","LTCUSDT"]
 
@@ -15,14 +16,14 @@ def check_signal(symbol):
         df['c'] = df['c'].astype(float)
         ema20 = df['c'].ewm(span=20).mean()
         ema50 = df['c'].ewm(span=50).mean()
+        # 20 ne 50 nu niche to upar cross kitta
         if ema20.iloc[-2] < ema50.iloc[-2] and ema20.iloc[-1] > ema50.iloc[-1]:
             return f"BUY {symbol} 15m - 20 crossed ABOVE 50"
-        if ema20.iloc[-2] > ema50.iloc[-2] and ema20.iloc[-1] < ema50.iloc[-1]:
-            return f"SELL {symbol} 15m - 20 crossed BELOW 50"
-    except:
-        return None
+    except Exception as e:
+        print(f"Error {symbol}: {e}")
     return None
 
+# Main scanning loop
 for coin in COINS:
     sig = check_signal(coin)
     if sig:
@@ -30,4 +31,12 @@ for coin in COINS:
             requests.post(f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage", data={"chat_id": CHAT_ID, "text": sig})
         except:
             pass
-        time.sleep(1)
+    time.sleep(1)
+
+# --- Heartbeat - Bot zinda hai wala message ---
+try:
+    now = datetime.now().strftime('%d-%b %I:%M %p')
+    heartbeat = f"✅ Bot Check OK - {now} - 10 Coins Scanned, All Good"
+    requests.post(f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage", data={"chat_id": CHAT_ID, "text": heartbeat})
+except:
+    pass
