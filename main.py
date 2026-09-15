@@ -7,7 +7,7 @@ BOT_TOKEN = os.getenv("BOT_TOKEN")
 CHAT_ID = os.getenv("CHAT_ID")
 
 def check_signal(symbol):
-    url = f"https://api.binance.com/api/v3/klines?symbol={symbol}&interval=15m&limit=60"
+    url = f"https://data-api.binance.vision/api/v3/klines?symbol={symbol}&interval=15m&limit=60"
     try:
         r = requests.get(url, timeout=10).json()
         if not isinstance(r, list):
