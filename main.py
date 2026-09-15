@@ -39,4 +39,6 @@ if signals:
     for sig in signals:
         send_msg(sig)
 else:
-    print("No Crossover - All Good")
+   else:
+    send_msg(f"✅ 20-50 Scanner ON - {time.strftime('%d-%b %I:%M %p')} - 30 Coins Check - No Crossover")
+    
