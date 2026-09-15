@@ -7,38 +7,34 @@ COINS = ["BTCUSDT","ETHUSDT","BNBUSDT","SOLUSDT","XRPUSDT","DOGEUSDT","ADAUSDT",
 
 def send_msg(text):
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
-    requests.post(url, data={"chat_id": CHAT_ID, "text": text, "parse_mode": "Markdown"})
-
-def check_signal(symbol):
     try:
-        url = f"https://data-api.binance.vision/api/v3/klines?symbol={symbol}&interval=15m&limit=60"
-        r = requests.get(url, timeout=10).json()
-        if not isinstance(r, list): return None
-        df = pd.DataFrame(r, columns=['t','o','h','l','c','v','a','b','c1','d','e','f'])
-        df['c'] = df['c'].astype(float)
-        ema20 = df['c'].ewm(span=20).mean()
-        ema50 = df['c'].ewm(span=50).mean()
-        
-        # 20 ਨੇ 50 ਨੂੰ ਨੀਚੇ ਤੋਂ ਉੱਪਰ Cross ਕੀਤਾ
+        requests.post(url, data={"chat_id": CHAT_ID, "text": text}, timeout=10)
+    except:
+        pass
+
+found = []
+
+for symbol in COINS:
+    try:
+        url = f"https://data-api.binance.vision/api/v3/klines?symbol={symbol}&interval=15m&limit=55"
+        data = requests.get(url, timeout=10).json()
+        df = pd.DataFrame(data)
+        close = df[4].astype(float)
+        ema20 = close.ewm(span=20, adjust=False).mean()
+        ema50 = close.ewm(span=50, adjust=False).mean()
+
+        # 20 Cross 50 Ribbon Logic
         if ema20.iloc[-2] < ema50.iloc[-2] and ema20.iloc[-1] > ema50.iloc[-1]:
-            return f"🚀 *BULLISH 20-50 CROSS*\n`{symbol}` - 15m\nPrice: {df['c'].iloc[-1]}"
-        # 20 ਨੇ 50 ਨੂੰ ਉੱਪਰੋਂ ਥੱਲੇ Cross ਕੀਤਾ
-        if ema20.iloc[-2] > ema50.iloc[-2] and ema20.iloc[-1] < ema50.iloc[-1]:
-            return f"🔻 *BEARISH 20-50 CROSS*\n`{symbol}` - 15m\nPrice: {df['c'].iloc[-1]}"
-    except Exception as e:
-        print(e)
-    return None
+            found.append(f"🚀 {symbol} - 20 CROSS ABOVE 50")
+        elif ema20.iloc[-2] > ema50.iloc[-2] and ema20.iloc[-1] < ema50.iloc[-1]:
+            found.append(f"🔻 {symbol} - 20 CROSS BELOW 50")
+    except:
+        pass
+    time.sleep(0.2)
 
-signals = []
-for coin in COINS:
-    s = check_signal(coin)
-    if s: signals.append(s)
-    time.sleep(0.4)
-
-if signals:
-    for sig in signals:
-        send_msg(sig)
+if found:
+    msg = "📈 *20-50 CROSSOVER ALERT (15m)*\n\n" + "\n".join(found)
+    send_msg(msg)
+    print(msg)
 else:
-   else:
-    send_msg(f"✅ 20-50 Scanner ON - {time.strftime('%d-%b %I:%M %p')} - 30 Coins Check - No Crossover")
-    
+    print("No Crossover - 20-50 Scanner Running OK")
