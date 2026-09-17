@@ -23,13 +23,26 @@ for symbol in COINS:
         ema20 = close.ewm(span=20, adjust=False).mean()
         ema50 = close.ewm(span=50, adjust=False).mean()
 
-        # 20 Cross 50 Ribbon Logic
-        if ema20.iloc[-2] < ema50.iloc[-2] and ema20.iloc[-1] > ema50.iloc[-1]:
-            found.append(f"🚀 {symbol} - 20 CROSS ABOVE 50")
-        elif ema20.iloc[-2] > ema50.iloc[-2] and ema20.iloc[-1] < ema50.iloc[-1]:
-            found.append(f"🔻 {symbol} - 20 CROSS BELOW 50")
+       # 20 Cross 50 - LIVE SUCCESSFUL LOGIC
+curr_ema20 = ema20.iloc[-1]
+    curr_ema50 = ema50.iloc[-1]
+    prev_ema20 = ema20.iloc[-2]
+    prev_ema50 = ema50.iloc[-2]
+    curr_price = close.iloc[-1]
+
+    gap_pct = abs(curr_ema20 - curr_ema50) / curr_price * 100
+
+    # BULLISH - 20 ne 50 nu UPAR cross
+    if prev_ema20 < prev_ema50 and curr_ema20 > curr_ema50 and gap_pct > 0.05:
+        found.append(f"🚀 {symbol}\n📈 20 EMA ne 50 nu UPAR Cross kita (BULLISH)\n💰 Price: {curr_price}\n📊 Gap: {gap_pct:.2f}%\n⏱️ TF: 15m LIVE\n✅ SUCCESSFUL CROSS")
+
+    # BEARISH - 20 ne 50 nu THALLE cross
+    if prev_ema20 > prev_ema50 and curr_ema20 < curr_ema50 and gap_pct > 0.05:
+        found.append(f"📉 {symbol}\n📉 20 EMA ne 50 nu THALLE Cross kita (BEARISH)\n💰 Price: {curr_price}\n📊 Gap: {gap_pct:.2f}%\n⏱️ TF: 15m LIVE\n✅ SUCCESSFUL CROSS")
+
     except:
         pass
+   
     time.sleep(0.2)
 
 if found:
