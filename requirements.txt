@@ -1,2 +1,4 @@
-requests
+ccxt
 pandas
+requests
+pytz
