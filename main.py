@@ -14,13 +14,19 @@ def send_telegram(msg):
 def get_klines(symbol):
     try:
         url = f"https://api.binance.com/api/v3/klines?symbol={symbol}&interval=15m&limit=100"
-        data = requests.get(url).json()
+        r = requests.get(url, timeout=10)
+        data = r.json()
+        # ਜੇ Binance ਨੇ Error ਦਿੱਤਾ ਤਾਂ Skip
+        if not isinstance(data, list) or len(data) < 60:
+            print(f"Skip {symbol} - not enough data")
+            return None
         df = pd.DataFrame(data, columns=["t","o","h","l","c","v","ct","qv","n","tb","tq","ig"])
         df["c"] = df["c"].astype(float)
         df["EMA20"] = df["c"].ewm(span=20).mean()
         df["EMA50"] = df["c"].ewm(span=50).mean()
         return df
-    except:
+    except Exception as e:
+        print(f"Error {symbol}: {e}")
         return None
 
 try:
@@ -31,11 +37,15 @@ except:
 
 for symbol in SYMBOLS:
     df = get_klines(symbol)
-    if df is None:
+    if df is None or len(df) < 60:
         continue
 
     prev = df.iloc[-3]
     curr = df.iloc[-2]
+
+    # ਜੇ EMA ਹਾਲੇ ਬਣੀ ਨਹੀਂ ਤਾਂ Skip
+    if pd.isna(prev["EMA20"]) or pd.isna(prev["EMA50"]):
+        continue
 
     curr_price = curr["c"]
     gap = abs(curr["EMA20"] - curr["EMA50"]) / curr["EMA50"] * 100
