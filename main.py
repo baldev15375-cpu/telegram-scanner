@@ -1,43 +1,75 @@
-import ccxt, pandas as pd, requests, os
-from datetime import datetime
-import pytz
+import os, requests, time, json
+import pandas as pd
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 CHAT_ID = os.getenv("CHAT_ID")
-TF = "15m"
-SYMBOLS = ["ENAUSDT","TIAUSDT","BTCUSDT","ETHUSDT"]
+STATE_FILE = "last_alerts.json"
 
-def send_msg(text):
+SYMBOLS = ["BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT", "ENAUSDT", "XRPUSDT", "DOGEUSDT"]
+
+def send_telegram(msg):
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
-    requests.post(url, data={"chat_id": CHAT_ID, "text": text})
+    requests.post(url, data={"chat_id": CHAT_ID, "text": msg, "parse_mode": "HTML"})
 
-exchange = ccxt.binance()
-ist = pytz.timezone('Asia/Kolkata')
+def get_klines(symbol):
+    try:
+        url = f"https://api.binance.com/api/v3/klines?symbol={symbol}&interval=15m&limit=100"
+        data = requests.get(url).json()
+        df = pd.DataFrame(data, columns=["t","o","h","l","c","v","ct","qv","n","tb","tq","ig"])
+        df["c"] = df["c"].astype(float)
+        df["EMA20"] = df["c"].ewm(span=20).mean()
+        df["EMA50"] = df["c"].ewm(span=50).mean()
+        return df
+    except:
+        return None
+
+try:
+    with open(STATE_FILE, "r") as f:
+        last_alerts = json.load(f)
+except:
+    last_alerts = {}
 
 for symbol in SYMBOLS:
-    try:
-        ohlcv = exchange.fetch_ohlcv(symbol, timeframe=TF, limit=100)
-        df = pd.DataFrame(ohlcv, columns=['t','o','h','l','c','v'])
-        
-        # LIVE EMA
-        df['ema20'] = df['c'].ewm(span=20, adjust=False).mean()
-        df['ema50'] = df['c'].ewm(span=50, adjust=False).mean()
-        
-        prev_20 = df['ema20'].iloc[-2]
-        prev_50 = df['ema50'].iloc[-2]
-        curr_20 = df['ema20'].iloc[-1]
-        curr_50 = df['ema50'].iloc[-1]
-        curr_price = df['c'].iloc[-1]
-        
-        time_now = datetime.now(ist).strftime("%I:%M %p, %d %b %y")
+    df = get_klines(symbol)
+    if df is None:
+        continue
 
-        # ਜਿੱਦਾਂ ਹੀ LIVE Cross ਹੋਵੇ
-        if prev_20 < prev_50 and curr_20 > curr_50:
-            msg = f"🔔 {symbol} | {TF}\n⚡ 20 EMA CROSSED ABOVE 50 EMA\n🕒 {time_now}\n💰 Price: ${curr_price:.4f}"
-            send_msg(msg)
-            
-        if prev_20 > prev_50 and curr_20 < curr_50:
-            msg = f"🔔 {symbol} | {TF}\n⚠️ 20 EMA CROSSED BELOW 50 EMA\n🕒 {time_now}\n💰 Price: ${curr_price:.4f}"
-            send_msg(msg)
-            
-    except: pass
+    prev = df.iloc[-3]
+    curr = df.iloc[-2]
+
+    curr_price = curr["c"]
+    gap = abs(curr["EMA20"] - curr["EMA50"]) / curr["EMA50"] * 100
+
+    direction = None
+    if prev["EMA20"] < prev["EMA50"] and curr["EMA20"] > curr["EMA50"]:
+        direction = "BULLISH"
+    elif prev["EMA20"] > prev["EMA50"] and curr["EMA20"] < curr["EMA50"]:
+        direction = "BEARISH"
+
+    if direction:
+        last = last_alerts.get(symbol, {})
+        last_dir = last.get("dir")
+        last_time = last.get("time", 0)
+
+        should_send = False
+        if last_dir!= direction:
+            should_send = True
+        elif time.time() - last_time > 3600:
+            should_send = True
+
+        if should_send:
+            emoji = "📈" if direction == "BULLISH" else "📉"
+            msg = f"""20-50 CROSSOVER ALERT (15m)
+
+{emoji} {symbol}
+20 EMA crossed 50 EMA ({direction})
+Price: {curr_price}
+Gap: {gap:.2f}%
+TF: 15m LIVE
+SUCCESSFUL CROSS"""
+
+            send_telegram(msg)
+            last_alerts[symbol] = {"dir": direction, "time": time.time()}
+
+with open(STATE_FILE, "w") as f:
+    json.dump(last_alerts, f)
