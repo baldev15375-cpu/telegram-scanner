@@ -1,43 +1,43 @@
-import requests
-import pandas as pd
-import time
-import os
+import ccxt, pandas as pd, requests, os
+from datetime import datetime
+import pytz
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 CHAT_ID = os.getenv("CHAT_ID")
+TF = "15m"
+SYMBOLS = ["ENAUSDT","TIAUSDT","BTCUSDT","ETHUSDT"]
 
-def send_msg(msg):
+def send_msg(text):
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
-    requests.post(url, data={"chat_id": CHAT_ID, "text": msg, "parse_mode": "Markdown"})
+    requests.post(url, data={"chat_id": CHAT_ID, "text": text})
 
-symbols = ["BTCUSDT","ETHUSDT","BNBUSDT","SOLUSDT","XRPUSDT","DOGEUSDT","ADAUSDT","AVAXUSDT","TIAUSDT","ARBUSDT","OPUSDT","SUIUSDT","APTUSDT","NEARUSDT","WUSDT","ENAUSDT","JUPUSDT","RENDERUSDT","FETUSDT","WIFUSDT"]
-found = []
+exchange = ccxt.binance()
+ist = pytz.timezone('Asia/Kolkata')
 
-for symbol in symbols:
+for symbol in SYMBOLS:
     try:
-        r = requests.get(f"https://data-api.binance.vision/api/v3/klines?symbol={symbol}&interval=15m&limit=55", timeout=10).json()
-        df = pd.DataFrame(r)
-        close = df[4].astype(float)
-        ema20 = close.ewm(span=20, adjust=False).mean()
-        ema50 = close.ewm(span=50, adjust=False).mean()
-        curr_ema20 = ema20.iloc[-1]
-        curr_ema50 = ema50.iloc[-1]
-        prev_ema20 = ema20.iloc[-2]
-        prev_ema50 = ema50.iloc[-2]
-        curr_price = close.iloc[-1]
-        gap_pct = abs(curr_ema20 - curr_ema50) / curr_price * 100
+        ohlcv = exchange.fetch_ohlcv(symbol, timeframe=TF, limit=100)
+        df = pd.DataFrame(ohlcv, columns=['t','o','h','l','c','v'])
+        
+        # LIVE EMA
+        df['ema20'] = df['c'].ewm(span=20, adjust=False).mean()
+        df['ema50'] = df['c'].ewm(span=50, adjust=False).mean()
+        
+        prev_20 = df['ema20'].iloc[-2]
+        prev_50 = df['ema50'].iloc[-2]
+        curr_20 = df['ema20'].iloc[-1]
+        curr_50 = df['ema50'].iloc[-1]
+        curr_price = df['c'].iloc[-1]
+        
+        time_now = datetime.now(ist).strftime("%I:%M %p, %d %b %y")
 
-        if prev_ema20 < prev_ema50 and curr_ema20 > curr_ema50 and gap_pct > 0.05:
-            found.append(f"🚀 {symbol}\n📈 20 EMA ne 50 nu UPAR Cross kita (BULLISH)\n💰 Price: {curr_price}\n📊 Gap: {gap_pct:.2f}%\n⏱️ TF: 15m LIVE\n✅ SUCCESSFUL CROSS")
-        if prev_ema20 > prev_ema50 and curr_ema20 < curr_ema50 and gap_pct > 0.05:
-            found.append(f"📉 {symbol}\n📉 20 EMA ne 50 nu THALLE Cross kita (BEARISH)\n💰 Price: {curr_price}\n📊 Gap: {gap_pct:.2f}%\n⏱️ TF: 15m LIVE\n✅ SUCCESSFUL CROSS")
-    except:
-        pass
-    time.sleep(0.2)
-
-if found:
-    msg = "20-50 CROSSOVER ALERT (15m)\n\n" + "\n\n".join(found)
-    send_msg(msg)
-    print(msg)
-else:
-    print("No Crossover - 20-50 Scanner Running OK")
+        # ਜਿੱਦਾਂ ਹੀ LIVE Cross ਹੋਵੇ
+        if prev_20 < prev_50 and curr_20 > curr_50:
+            msg = f"🔔 {symbol} | {TF}\n⚡ 20 EMA CROSSED ABOVE 50 EMA\n🕒 {time_now}\n💰 Price: ${curr_price:.4f}"
+            send_msg(msg)
+            
+        if prev_20 > prev_50 and curr_20 < curr_50:
+            msg = f"🔔 {symbol} | {TF}\n⚠️ 20 EMA CROSSED BELOW 50 EMA\n🕒 {time_now}\n💰 Price: ${curr_price:.4f}"
+            send_msg(msg)
+            
+    except: pass
